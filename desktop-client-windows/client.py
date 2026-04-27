@@ -1,4 +1,4 @@
-"""Click Relay — Windows desktop client.
+"""Gorilla — Windows desktop client.
 Uses Win32 SendInput (via ctypes) for mouse click injection.
 No external dependencies beyond `websockets`.
 """
@@ -76,7 +76,7 @@ class FloatingCursor:
 class DesktopClient:
     def __init__(self, root):
         self.root = root
-        self.root.title("Click Relay")
+        self.root.title("Gorilla")
         self.root.geometry("360x180+40+40")
         self.root.configure(bg='#1e1e2e')
         self.root.attributes('-topmost', True)
@@ -93,7 +93,7 @@ class DesktopClient:
     def _build_control_ui(self):
         top = tk.Frame(self.root, bg='#1e1e2e')
         top.pack(fill='x', padx=12, pady=10)
-        tk.Label(top, text="Click Relay", font=('Arial', 14, 'bold'),
+        tk.Label(top, text="Gorilla", font=('Arial', 14, 'bold'),
                  bg='#1e1e2e', fg='#cdd6f4').pack(side='left')
         self.status_label = tk.Label(top, text="● Disconnected",
                                      font=('Arial', 10),

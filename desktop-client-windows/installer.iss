@@ -1,16 +1,16 @@
-; Inno Setup script for Click Relay
-; Creates a Windows installer (ClickRelaySetup.exe) with Start Menu shortcut and uninstaller.
+; Inno Setup script for Gorilla
+; Creates a Windows installer (GorillaSetup.exe) with Start Menu shortcut and uninstaller.
 ;
 ; Build steps:
 ;   1. Install Inno Setup from https://jrsoftware.org/isinfo.php
-;   2. Run build.bat first to create dist\ClickRelay.exe
+;   2. Run build.bat first to create dist\Gorilla.exe
 ;   3. Open this .iss file in Inno Setup Compiler — click "Build" -> "Compile"
-;   4. Result: Output\ClickRelaySetup.exe — distribute this single file
+;   4. Result: Output\GorillaSetup.exe — distribute this single file
 
-#define MyAppName "Click Relay"
+#define MyAppName "Gorilla"
 #define MyAppVersion "1.0.0"
-#define MyAppPublisher "Click Relay"
-#define MyAppExeName "ClickRelay.exe"
+#define MyAppPublisher "Gorilla"
+#define MyAppExeName "Gorilla.exe"
 
 [Setup]
 AppId={{A7E8F1A2-3C5D-4F6E-9B8A-1234567890AB}
@@ -19,7 +19,7 @@ AppVersion={#MyAppVersion}
 AppPublisher={#MyAppPublisher}
 DefaultDirName={autopf}\{#MyAppName}
 DefaultGroupName={#MyAppName}
-OutputBaseFilename=ClickRelaySetup
+OutputBaseFilename=GorillaSetup
 Compression=lzma
 SolidCompression=yes
 WizardStyle=modern

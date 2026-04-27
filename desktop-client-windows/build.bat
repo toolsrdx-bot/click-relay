@@ -1,7 +1,7 @@
 @echo off
-REM Build a single ClickRelay.exe using PyInstaller
+REM Build a single Gorilla.exe using PyInstaller
 
-echo === Click Relay — Windows EXE Builder ===
+echo === Gorilla — Windows EXE Builder ===
 echo.
 
 where python >nul 2>nul
@@ -16,13 +16,13 @@ python -m pip install --upgrade pip
 python -m pip install pyinstaller websockets
 
 echo.
-echo Building ClickRelay.exe (this takes 1-2 minutes)...
+echo Building Gorilla.exe (this takes 1-2 minutes)...
 echo.
 
 python -m PyInstaller ^
     --onefile ^
     --noconsole ^
-    --name "ClickRelay" ^
+    --name "Gorilla" ^
     --clean ^
     --hidden-import websockets.legacy ^
     --hidden-import websockets.legacy.client ^
@@ -38,7 +38,7 @@ if errorlevel 1 (
 echo.
 echo ============================================
 echo  Build complete.
-echo  Your .exe is at: dist\ClickRelay.exe
+echo  Your .exe is at: dist\Gorilla.exe
 echo ============================================
 echo.
 pause

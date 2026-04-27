@@ -1,5 +1,5 @@
 #!/bin/bash
-# Click Relay — Linux setup
+# Gorilla — Linux setup
 sudo apt-get update
 sudo apt-get install -y python3-tk python3-pip xdotool
 pip3 install websockets --break-system-packages

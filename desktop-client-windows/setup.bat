@@ -1,5 +1,5 @@
 @echo off
-echo Click Relay - Windows setup
+echo Gorilla - Windows setup
 echo.
 
 where python >nul 2>nul

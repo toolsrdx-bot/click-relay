@@ -4,7 +4,7 @@
     <uses-permission android:name="android.permission.INTERNET" />
 
     <application
-        android:label="Click Relay"
+        android:label="Gorilla"
         android:theme="@style/Theme.ClickRelay"
         android:usesCleartextTraffic="true"
         android:supportsRtl="true">

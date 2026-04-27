@@ -1,4 +1,4 @@
-# Click Relay — Windows Desktop Client
+# Gorilla — Windows Desktop Client
 
 For Windows 10 / 11.
 
@@ -7,8 +7,8 @@ You have **three ways** to run/distribute this client:
 | Mode | What user does | Build step needed |
 |---|---|---|
 | **A. Run from source** | `python client.py` | None |
-| **B. Single .exe** | Double-click `ClickRelay.exe` | `build.bat` (one time) |
-| **C. Installer** | Run `ClickRelaySetup.exe` → Next, Next, Finish | `build.bat` + Inno Setup |
+| **B. Single .exe** | Double-click `Gorilla.exe` | `build.bat` (one time) |
+| **C. Installer** | Run `GorillaSetup.exe` → Next, Next, Finish | `build.bat` + Inno Setup |
 
 ---
 
@@ -27,7 +27,7 @@ End users won't need Python — they just get one file.
 1. Install Python (one-time, on the build machine)
 2. Double-click `build.bat`
 3. Wait 1-2 minutes
-4. Result: `dist\ClickRelay.exe` — give this file to anyone
+4. Result: `dist\Gorilla.exe` — give this file to anyone
 
 The `.exe` is ~15-25 MB, includes the Python interpreter and all dependencies.
 
@@ -37,11 +37,11 @@ The `.exe` is ~15-25 MB, includes the Python interpreter and all dependencies.
 
 For the most polished distribution — Start Menu shortcut, uninstaller, optional auto-startup.
 
-1. Run `build.bat` first to create `dist\ClickRelay.exe`
+1. Run `build.bat` first to create `dist\Gorilla.exe`
 2. Install **Inno Setup** (free): https://jrsoftware.org/isinfo.php
 3. Open `installer.iss` in Inno Setup Compiler
 4. Click **Build → Compile**
-5. Result: `Output\ClickRelaySetup.exe` — single installer file
+5. Result: `Output\GorillaSetup.exe` — single installer file
 
 Users run the installer once → app appears in Start Menu, can be uninstalled normally.
 

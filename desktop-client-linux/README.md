@@ -1,4 +1,4 @@
-# Click Relay — Linux Desktop Client
+# Gorilla — Linux Desktop Client
 
 For Mint, Ubuntu, Debian (X11 desktop sessions).
 
