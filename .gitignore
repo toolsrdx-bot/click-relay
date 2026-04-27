@@ -1,0 +1,27 @@
+# Android build artifacts
+android-app/build/
+android-app/app/build/
+android-app/.gradle/
+android-app/local.properties
+
+# Node
+server/node_modules/
+
+# Python
+__pycache__/
+*.pyc
+desktop-client-windows/build/
+desktop-client-windows/dist/
+desktop-client-linux/build/
+desktop-client-linux/dist/
+*.spec
+
+# Gradle temp
+gradle-temp/
+
+# Skill repos (cloned separately)
+awesome-claude-skills/
+claude-android-skill/
+
+# Claude
+.claude/
