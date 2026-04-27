@@ -42,7 +42,7 @@ fun MainScreen(
         Spacer(Modifier.height(32.dp))
 
         Text(
-            text = "Gorilla",
+            text = "Gorilla Controller",
             fontSize = 28.sp,
             fontWeight = FontWeight.Bold,
             color = TextColor,

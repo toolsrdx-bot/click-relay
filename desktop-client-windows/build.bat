@@ -22,7 +22,7 @@ echo.
 python -m PyInstaller ^
     --onefile ^
     --noconsole ^
-    --name "Gorilla" ^
+    --name "GorillaClick" ^
     --clean ^
     --hidden-import websockets.legacy ^
     --hidden-import websockets.legacy.client ^

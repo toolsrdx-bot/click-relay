@@ -7,10 +7,10 @@
 ;   3. Open this .iss file in Inno Setup Compiler — click "Build" -> "Compile"
 ;   4. Result: Output\GorillaSetup.exe — distribute this single file
 
-#define MyAppName "Gorilla"
+#define MyAppName "Gorilla Click"
 #define MyAppVersion "1.0.0"
 #define MyAppPublisher "Gorilla"
-#define MyAppExeName "Gorilla.exe"
+#define MyAppExeName "GorillaClick.exe"
 
 [Setup]
 AppId={{A7E8F1A2-3C5D-4F6E-9B8A-1234567890AB}

@@ -29,7 +29,7 @@ jobs:
           python -m PyInstaller `
             --onefile `
             --noconsole `
-            --name "Gorilla" `
+            --name "GorillaClick" `
             --clean `
             --hidden-import websockets.legacy `
             --hidden-import websockets.legacy.client `
@@ -38,6 +38,6 @@ jobs:
       - name: Upload EXE as artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Gorilla-Windows
-          path: desktop-client-windows/dist/Gorilla.exe
+          name: GorillaClick-Windows
+          path: desktop-client-windows/dist/GorillaClick.exe
           retention-days: 30
