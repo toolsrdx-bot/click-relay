@@ -42,7 +42,7 @@ fun MainScreen(
         Spacer(Modifier.height(32.dp))
 
         Text(
-            text = "Click Relay",
+            text = "Gorilla",
             fontSize = 28.sp,
             fontWeight = FontWeight.Bold,
             color = TextColor,
