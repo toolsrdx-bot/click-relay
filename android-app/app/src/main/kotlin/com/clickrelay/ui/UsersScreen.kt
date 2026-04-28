@@ -118,7 +118,6 @@ private fun UserCard(
                     DropdownMenu(
                         expanded = showRoleMenu,
                         onDismissRequest = { showRoleMenu = false },
-                        containerColor = SURF,
                     ) {
                         manageableRoles(actorRole).forEach { role ->
                             DropdownMenuItem(
@@ -180,8 +179,7 @@ private fun CreateUserDialog(
                         Text("Role: $role", modifier = Modifier.weight(1f))
                         Text("▾", color = SUB)
                     }
-                    DropdownMenu(expanded = showRoleMenu, onDismissRequest = { showRoleMenu = false },
-                        containerColor = SURF) {
+                    DropdownMenu(expanded = showRoleMenu, onDismissRequest = { showRoleMenu = false }) {
                         manageableRoles(actorRole).forEach { r ->
                             DropdownMenuItem(text = { Text(r, color = TEXT) },
                                 onClick = { role = r; showRoleMenu = false })
