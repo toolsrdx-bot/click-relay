@@ -13,9 +13,9 @@ import org.json.JSONObject
 import java.util.concurrent.TimeUnit
 
 sealed interface RelayEvent {
-    data object SessionJoined : RelayEvent
-    data object DesktopConnected : RelayEvent
-    data object DesktopDisconnected : RelayEvent
+    data object AuthOk : RelayEvent
+    data object RoomJoined : RelayEvent
+    data object ControllerDisconnected : RelayEvent
     data class Error(val message: String) : RelayEvent
     data object Disconnected : RelayEvent
 }
@@ -37,50 +37,63 @@ class RelayWebSocket(private val serverUrl: String) {
     private val _events = MutableSharedFlow<RelayEvent>(extraBufferCapacity = 16)
     val events = _events.asSharedFlow()
 
-    fun connect(sessionCode: String) {
+    fun connect(token: String, controllerUsername: String, roomPassword: String, deviceName: String) {
         _connectionState.value = ConnectionState.CONNECTING
         val request = Request.Builder().url(serverUrl).build()
-        ws = client.newWebSocket(request, object : WebSocketListener() {
+        ws = client.newWebSocket(request, AuthListener(token, controllerUsername, roomPassword, deviceName))
+    }
 
-            override fun onOpen(webSocket: WebSocket, response: Response) {
-                val payload = JSONObject().apply {
-                    put("type", "join_session")
-                    put("code", sessionCode)
+    private inner class AuthListener(
+        private val token: String,
+        private val controllerUsername: String,
+        private val roomPassword: String,
+        private val deviceName: String,
+    ) : WebSocketListener() {
+
+        override fun onOpen(webSocket: WebSocket, response: Response) {
+            webSocket.send(JSONObject().apply {
+                put("type", "auth")
+                put("token", token)
+            }.toString())
+        }
+
+        override fun onMessage(webSocket: WebSocket, text: String) {
+            val msg = runCatching { JSONObject(text) }.getOrNull() ?: return
+            when (msg.optString("type")) {
+                "auth_ok" -> {
+                    webSocket.send(JSONObject().apply {
+                        put("type", "join_room")
+                        put("controllerUsername", controllerUsername)
+                        put("roomPassword", roomPassword)
+                        put("deviceName", deviceName)
+                    }.toString())
+                    _events.tryEmit(RelayEvent.AuthOk)
                 }
-                webSocket.send(payload.toString())
-            }
-
-            override fun onMessage(webSocket: WebSocket, text: String) {
-                val msg = JSONObject(text)
-                when (msg.getString("type")) {
-                    "session_joined" -> {
-                        _connectionState.value = ConnectionState.CONNECTED
-                        _events.tryEmit(RelayEvent.SessionJoined)
-                    }
-                    "desktop_connected" -> _events.tryEmit(RelayEvent.DesktopConnected)
-                    "desktop_disconnected" -> _events.tryEmit(RelayEvent.DesktopDisconnected)
-                    "error" -> _events.tryEmit(RelayEvent.Error(msg.optString("message")))
+                "room_joined" -> {
+                    _connectionState.value = ConnectionState.CONNECTED
+                    _events.tryEmit(RelayEvent.RoomJoined)
                 }
+                "controller_disconnected" -> _events.tryEmit(RelayEvent.ControllerDisconnected)
+                "error" -> _events.tryEmit(RelayEvent.Error(msg.optString("message")))
             }
+        }
 
-            override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
-                _connectionState.value = ConnectionState.DISCONNECTED
-                _events.tryEmit(RelayEvent.Error(t.message ?: "Connection failed"))
-            }
+        override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
+            _connectionState.value = ConnectionState.DISCONNECTED
+            _events.tryEmit(RelayEvent.Error(t.message ?: "Connection failed"))
+        }
 
-            override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
-                _connectionState.value = ConnectionState.DISCONNECTED
-                _events.tryEmit(RelayEvent.Disconnected)
-            }
-        })
+        override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
+            _connectionState.value = ConnectionState.DISCONNECTED
+            _events.tryEmit(RelayEvent.Disconnected)
+        }
     }
 
     fun sendClick(cursor: String) {
-        val payload = JSONObject().apply {
+        ws?.send(JSONObject().apply {
             put("type", "click")
             put("cursor", cursor)
-        }
-        ws?.send(payload.toString())
+        }.toString())
     }
 
     fun disconnect() {

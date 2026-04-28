@@ -7,6 +7,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.viewModels
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import com.clickrelay.ui.LoginScreen
 import com.clickrelay.ui.MainScreen
 
 class MainActivity : ComponentActivity() {
@@ -17,28 +18,29 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setContent {
             val uiState by viewModel.uiState.collectAsState()
-            MainScreen(
-                uiState = uiState,
-                onSessionCodeChange = viewModel::onSessionCodeChange,
-                onConnect = viewModel::connect,
-                onDisconnect = viewModel::disconnect,
-            )
+            when (uiState.screen) {
+                Screen.LOGIN -> LoginScreen(
+                    uiState = uiState,
+                    onUsernameChange = viewModel::onUsernameChange,
+                    onPasswordChange = viewModel::onPasswordChange,
+                    onControllerUsernameChange = viewModel::onControllerUsernameChange,
+                    onRoomPasswordChange = viewModel::onRoomPasswordChange,
+                    onDeviceNameChange = viewModel::onDeviceNameChange,
+                    onLogin = viewModel::login,
+                )
+                Screen.MAIN -> MainScreen(
+                    uiState = uiState,
+                    onDisconnect = viewModel::disconnect,
+                )
+            }
         }
     }
 
-    // Intercept hardware volume buttons — suppress default behavior and send relay events
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         if (event.action != KeyEvent.ACTION_DOWN) return super.dispatchKeyEvent(event)
-
         return when (event.keyCode) {
-            KeyEvent.KEYCODE_VOLUME_UP -> {
-                viewModel.sendClick("A")
-                true // suppress default volume change
-            }
-            KeyEvent.KEYCODE_VOLUME_DOWN -> {
-                viewModel.sendClick("B")
-                true // suppress default volume change
-            }
+            KeyEvent.KEYCODE_VOLUME_UP -> { viewModel.sendClick("A"); true }
+            KeyEvent.KEYCODE_VOLUME_DOWN -> { viewModel.sendClick("B"); true }
             else -> super.dispatchKeyEvent(event)
         }
     }
