@@ -18,14 +18,17 @@ import androidx.compose.ui.window.Dialog
 import com.clickrelay.MainUiState
 import com.clickrelay.UserItem
 
-private val BG    = Color(0xFF1E1E2E)
-private val SURF  = Color(0xFF313244)
-private val BLUE  = Color(0xFF89B4FA)
-private val GREEN = Color(0xFFA6E3A1)
-private val RED   = Color(0xFFF38BA8)
-private val TEXT  = Color(0xFFCDD6F4)
-private val SUB   = Color(0xFF6C7086)
+private val BG     = Color(0xFF0D1117)
+private val SURF   = Color(0xFF161B22)
+private val CYAN   = Color(0xFF4FC3F7)
+private val GREEN  = Color(0xFF56D364)
+private val RED    = Color(0xFFFF7B72)
+private val TEXT   = Color(0xFFE6EDF3)
+private val SUB    = Color(0xFF6E7681)
+private val PURPLE = Color(0xFFD2A8FF)
+private val AMBER  = Color(0xFFFFA657)
 
+private val BLUE = CYAN  // alias so Button refs still compile
 private val ALL_ROLES = listOf("queen", "rook", "pawn")
 
 @Composable
@@ -91,9 +94,9 @@ private fun UserCard(
     val canManage = canManage(actorRole, user.role) && user.username != "king"
 
     val roleColor = when (user.role) {
-        "king"  -> Color(0xFFCBA6F7)
-        "queen" -> Color(0xFFF9E2AF)
-        "rook"  -> BLUE
+        "king"  -> PURPLE
+        "queen" -> AMBER
+        "rook"  -> CYAN
         else    -> SUB
     }
 
@@ -121,8 +124,9 @@ private fun UserCard(
                     ) {
                         manageableRoles(actorRole).forEach { role ->
                             DropdownMenuItem(
-                                text = { Text(role, color = TEXT) },
+                                text = { Text(role) },
                                 onClick = { showRoleMenu = false; onChangeRole(role) },
+                                colors = MenuDefaults.itemColors(textColor = TEXT),
                             )
                         }
                     }
@@ -181,8 +185,11 @@ private fun CreateUserDialog(
                     }
                     DropdownMenu(expanded = showRoleMenu, onDismissRequest = { showRoleMenu = false }) {
                         manageableRoles(actorRole).forEach { r ->
-                            DropdownMenuItem(text = { Text(r, color = TEXT) },
-                                onClick = { role = r; showRoleMenu = false })
+                            DropdownMenuItem(
+                                text = { Text(r) },
+                                onClick = { role = r; showRoleMenu = false },
+                                colors = MenuDefaults.itemColors(textColor = TEXT),
+                            )
                         }
                     }
                 }

@@ -17,11 +17,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.clickrelay.MainUiState
 
-private val BG   = Color(0xFF1E1E2E)
-private val BLUE = Color(0xFF89B4FA)
-private val RED  = Color(0xFFF38BA8)
-private val TEXT = Color(0xFFCDD6F4)
-private val SUB  = Color(0xFF6C7086)
+private val BG   = Color(0xFF0D1117)
+private val BLUE = Color(0xFF4FC3F7)
+private val RED  = Color(0xFFFF7B72)
+private val TEXT = Color(0xFFE6EDF3)
+private val SUB  = Color(0xFF6E7681)
 
 @Composable
 fun LoginScreen(

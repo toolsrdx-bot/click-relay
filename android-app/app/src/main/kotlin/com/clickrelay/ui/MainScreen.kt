@@ -17,13 +17,13 @@ import androidx.compose.ui.unit.sp
 import com.clickrelay.MainUiState
 import com.clickrelay.network.Desktop
 
-private val BG    = Color(0xFF1E1E2E)
-private val SURF  = Color(0xFF313244)
-private val GREEN = Color(0xFFA6E3A1)
-private val RED   = Color(0xFFF38BA8)
-private val BLUE  = Color(0xFF89B4FA)
-private val TEXT  = Color(0xFFCDD6F4)
-private val SUB   = Color(0xFF6C7086)
+private val BG   = Color(0xFF0D1117)
+private val SURF = Color(0xFF161B22)
+private val GREEN = Color(0xFF56D364)
+private val RED  = Color(0xFFFF7B72)
+private val BLUE = Color(0xFF4FC3F7)
+private val TEXT = Color(0xFFE6EDF3)
+private val SUB  = Color(0xFF6E7681)
 
 @Composable
 fun MainScreen(
@@ -46,7 +46,7 @@ fun MainScreen(
         Spacer(Modifier.height(24.dp))
 
         // Volume button guide
-        Surface(color = Color(0xFF1E3A2F), shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth()) {
+        Surface(color = Color(0xFF0D2318), shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                 Text("Press Volume Buttons to Click", color = GREEN, fontWeight = FontWeight.Bold, fontSize = 15.sp)
                 Spacer(Modifier.height(12.dp))
@@ -103,7 +103,7 @@ fun MainScreen(
 
 @Composable
 private fun DesktopItem(desktop: Desktop) {
-    Surface(color = Color(0xFF45475A), shape = RoundedCornerShape(10.dp), modifier = Modifier.fillMaxWidth()) {
+    Surface(color = Color(0xFF1C2333), shape = RoundedCornerShape(10.dp), modifier = Modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
