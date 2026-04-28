@@ -99,6 +99,62 @@ function desktopList(room) {
 const app = express();
 app.use(express.json());
 
+// ─── Download page ───────────────────────────────────────────────
+const GITHUB_REPO = 'toolsrdx-bot/click-relay';
+const ACTIONS_URL = `https://github.com/${GITHUB_REPO}/actions`;
+
+app.get('/', (req, res) => {
+  res.send(`<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Gorilla — Downloads</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #1e1e2e; color: #cdd6f4; font-family: Arial, sans-serif; padding: 40px 24px; }
+    h1 { font-size: 28px; margin-bottom: 6px; }
+    p.sub { color: #6c7086; margin-bottom: 36px; font-size: 14px; }
+    .grid { display: flex; gap: 20px; flex-wrap: wrap; }
+    .card { background: #313244; border-radius: 16px; padding: 28px; flex: 1; min-width: 240px; }
+    .card h2 { font-size: 18px; margin-bottom: 8px; }
+    .card p { color: #a6adc8; font-size: 13px; margin-bottom: 20px; line-height: 1.5; }
+    a.btn { display: inline-block; background: #89b4fa; color: #1e1e2e; text-decoration: none;
+            font-weight: bold; padding: 10px 22px; border-radius: 10px; font-size: 14px; }
+    a.btn:hover { background: #74a8f7; }
+    .tag { display: inline-block; font-size: 11px; background: #45475a; color: #a6adc8;
+           padding: 2px 8px; border-radius: 6px; margin-bottom: 12px; }
+  </style>
+</head>
+<body>
+  <h1>🦍 Gorilla</h1>
+  <p class="sub">Click relay system — downloads</p>
+  <div class="grid">
+    <div class="card">
+      <span class="tag">Android</span>
+      <h2>Gorilla Controller</h2>
+      <p>Android app — control desktops with your volume buttons.</p>
+      <a class="btn" href="${ACTIONS_URL}">Download APK</a>
+    </div>
+    <div class="card">
+      <span class="tag">Windows</span>
+      <h2>Gorilla Click</h2>
+      <p>Windows desktop client — receives clicks from the controller.</p>
+      <a class="btn" href="${ACTIONS_URL}">Download EXE</a>
+    </div>
+    <div class="card">
+      <span class="tag">Linux</span>
+      <h2>Gorilla Click</h2>
+      <p>Linux desktop client — run with Python 3 + websockets.</p>
+      <a class="btn" href="https://raw.githubusercontent.com/${GITHUB_REPO}/main/desktop-client-linux/client.py">Download client.py</a>
+    </div>
+  </div>
+  <p style="margin-top:32px;color:#45475a;font-size:12px;">
+    For latest builds visit: <a href="${ACTIONS_URL}" style="color:#6c7086;">${ACTIONS_URL}</a>
+  </p>
+</body>
+</html>`);
+});
+
 function authMiddleware(req, res, next) {
   const auth = req.headers.authorization || '';
   const token = auth.startsWith('Bearer ') ? auth.slice(7) : null;
