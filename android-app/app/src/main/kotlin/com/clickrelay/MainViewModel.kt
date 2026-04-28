@@ -94,13 +94,15 @@ class MainViewModel : ViewModel() {
         _uiState.update { it.copy(isLoggingIn = true, loginError = "") }
         viewModelScope.launch {
             runCatching {
-                val body = JSONObject().apply { put("username", s.username); put("password", s.password) }
-                    .toString().toRequestBody("application/json".toMediaType())
-                val req = Request.Builder().url("$HTTP_URL/login").post(body).build()
-                val resp = http.newCall(req).execute()
-                val json = JSONObject(resp.body!!.string())
-                if (!resp.isSuccessful) error(json.optString("error", "Login failed"))
-                Triple(json.getString("token"), json.getString("role"), json.getString("accountType"))
+                withContext(Dispatchers.IO) {
+                    val body = JSONObject().apply { put("username", s.username); put("password", s.password) }
+                        .toString().toRequestBody("application/json".toMediaType())
+                    val req = Request.Builder().url("$HTTP_URL/login").post(body).build()
+                    val resp = http.newCall(req).execute()
+                    val json = JSONObject(resp.body!!.string())
+                    if (!resp.isSuccessful) error(json.optString("error", "Login failed"))
+                    Triple(json.getString("token"), json.getString("role"), json.getString("accountType"))
+                }
             }.fold(
                 onSuccess = { (token, role, accountType) ->
                     if (accountType != "controller") {
