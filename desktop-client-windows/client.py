@@ -221,6 +221,10 @@ class DesktopClient:
                 asyncio.run_coroutine_threadsafe(self.ws.close(), self.loop)
         elif t == 'error':
             self._log(f"Error: {msg.get('message')}")
+            # If we never joined (e.g. room not open yet), close WS so the
+            # auto-retry loop kicks in and tries again until the room exists.
+            if not self._connected and self.ws:
+                asyncio.run_coroutine_threadsafe(self.ws.close(), self.loop)
 
     def _log(self, text):
         self.root.after(0, lambda: self.log_var.set(text))
