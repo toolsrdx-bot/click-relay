@@ -125,9 +125,15 @@ class DesktopClient:
         top.pack(fill='x', padx=14, pady=(12,0))
         tk.Label(top, text="Gorilla Click", font=('Arial',14,'bold'),
                  bg=BG, fg=TEXT).pack(side='left')
+
+        # Switch Room button — always visible at top right
+        tk.Button(top, text="⇄ Switch Room", command=self._switch_room,
+                  bg=AMB, fg=BG, font=('Arial',9,'bold'),
+                  relief='flat', padx=10, pady=4, cursor='hand2').pack(side='right')
+
         self.status_lbl = tk.Label(top, text="● Connecting…",
                                    font=('Arial',10), bg=BG, fg=AMB)
-        self.status_lbl.pack(side='right')
+        self.status_lbl.pack(side='right', padx=(0, 10))
 
         # Info bar
         info = tk.Frame(self.root, bg=SURF, pady=6)
@@ -140,7 +146,7 @@ class DesktopClient:
         tk.Label(self.root, textvariable=self.log_var, font=('Arial',8),
                  bg=BG, fg=SUB, wraplength=360).pack(pady=(0,4))
 
-        # Buttons row (Disconnect | Reconnect | Switch Room)
+        # Bottom action row (Disconnect or Reconnect)
         self.btn_row = tk.Frame(self.root, bg=BG)
         self.btn_row.pack(fill='x', padx=14, pady=4)
 
@@ -150,9 +156,6 @@ class DesktopClient:
         self.btn_reconnect = tk.Button(
             self.btn_row, text="Reconnect", command=self._reconnect,
             bg=CYAN, fg=BG, font=('Arial',9,'bold'), relief='flat', pady=6, cursor='hand2')
-        self.btn_switch = tk.Button(
-            self.btn_row, text="Switch Room", command=self._switch_room,
-            bg=AMB, fg=BG, font=('Arial',9,'bold'), relief='flat', pady=6, cursor='hand2')
         self._set_buttons_connected()
 
     def _spawn_cursors(self):
@@ -228,16 +231,13 @@ class DesktopClient:
         self.root.after(0, lambda: self.log_var.set(text))
 
     def _set_buttons_connected(self):
-        for w in self.btn_row.winfo_children():
-            w.pack_forget()
-        self.btn_disconnect.pack(in_=self.btn_row, side='left', fill='x', expand=True, padx=(0,0))
+        self.btn_reconnect.pack_forget()
+        self.btn_disconnect.pack(in_=self.btn_row, fill='x', expand=True)
 
     def _show_reconnect_state(self):
         self.status_lbl.config(text='● Disconnected', fg=RED)
-        for w in self.btn_row.winfo_children():
-            w.pack_forget()
-        self.btn_reconnect.pack(in_=self.btn_row, side='left', fill='x', expand=True, padx=(0,4))
-        self.btn_switch.pack(in_=self.btn_row, side='left', fill='x', expand=True, padx=(4,0))
+        self.btn_disconnect.pack_forget()
+        self.btn_reconnect.pack(in_=self.btn_row, fill='x', expand=True)
 
     def _disconnect(self):
         self._user_disconnect = True
