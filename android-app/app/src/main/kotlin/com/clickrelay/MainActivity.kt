@@ -7,9 +7,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.viewModels
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import com.clickrelay.ui.LoginScreen
-import com.clickrelay.ui.MainScreen
-import com.clickrelay.ui.OpenRoomScreen
+import com.clickrelay.ui.*
 
 class MainActivity : ComponentActivity() {
 
@@ -26,15 +24,28 @@ class MainActivity : ComponentActivity() {
                     onPasswordChange = viewModel::onPasswordChange,
                     onLogin = viewModel::login,
                 )
+                Screen.HOME -> HomeScreen(
+                    uiState = uiState,
+                    onManageUsers = viewModel::goToUsers,
+                    onOpenRoom = viewModel::goToOpenRoom,
+                    onLogout = viewModel::logout,
+                )
+                Screen.USERS -> UsersScreen(
+                    uiState = uiState,
+                    onBack = { viewModel.goHome() },
+                    onCreateUser = viewModel::createUser,
+                    onDeleteUser = viewModel::deleteUser,
+                    onChangeRole = viewModel::changeRole,
+                )
                 Screen.OPEN_ROOM -> OpenRoomScreen(
                     uiState = uiState,
                     onRoomPasswordChange = viewModel::onRoomPasswordChange,
                     onOpenRoom = viewModel::openRoom,
-                    onDisconnect = viewModel::disconnect,
+                    onDisconnect = viewModel::goHome,
                 )
                 Screen.ROOM_ACTIVE -> MainScreen(
                     uiState = uiState,
-                    onDisconnect = viewModel::disconnect,
+                    onDisconnect = viewModel::goHome,
                 )
             }
         }

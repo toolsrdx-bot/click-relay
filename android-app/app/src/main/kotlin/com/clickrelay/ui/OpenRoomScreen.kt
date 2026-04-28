@@ -42,7 +42,7 @@ fun OpenRoomScreen(
     ) {
         Text("Gorilla Controller", fontSize = 28.sp, fontWeight = FontWeight.Bold, color = TEXT)
         Spacer(Modifier.height(6.dp))
-        Text("● Connected as ${uiState.username}", fontSize = 13.sp, color = GREEN)
+        Text("● Signed in as ${uiState.username}  ·  ${uiState.role}", fontSize = 13.sp, color = GREEN)
         Spacer(Modifier.height(36.dp))
 
         Surface(color = SURF, shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth()) {
