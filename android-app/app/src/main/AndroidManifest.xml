@@ -5,7 +5,7 @@
 
     <application
         android:label="Gorilla Controller"
-        android:theme="@style/Theme.ClickRelay"
+        android:theme="@style/Theme.Gorilla"
         android:usesCleartextTraffic="true"
         android:supportsRtl="true">
 
