@@ -111,7 +111,7 @@ class MainViewModel : ViewModel() {
                     _uiState.update { it.copy(isLoggingIn = false, username = s.username, role = role, screen = Screen.HOME) }
                 },
                 onFailure = { err ->
-                    _uiState.update { it.copy(isLoggingIn = false, loginError = err.message ?: "Login failed.") }
+                    _uiState.update { it.copy(isLoggingIn = false, loginError = "${err.javaClass.simpleName}: ${err.message}") }
                 }
             )
         }
