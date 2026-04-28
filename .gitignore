@@ -7,6 +7,10 @@ android-app/local.properties
 # Node
 server/node_modules/
 
+# TLS private key — never commit
+server/certs/server.key
+server/gorilla.db
+
 # Python
 __pycache__/
 *.pyc

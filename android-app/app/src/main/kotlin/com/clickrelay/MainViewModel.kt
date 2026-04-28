@@ -1,6 +1,8 @@
 package com.clickrelay
 
-import androidx.lifecycle.ViewModel
+import android.app.Application
+import android.content.Context
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.clickrelay.network.ConnectionState
 import com.clickrelay.network.Desktop
@@ -19,7 +21,7 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
 import org.json.JSONArray
 
-enum class Screen { LOGIN, HOME, USERS, OPEN_ROOM, ROOM_ACTIVE }
+enum class Screen { ONBOARDING, LOGIN, HOME, USERS, OPEN_ROOM, ROOM_ACTIVE }
 
 data class UserItem(
     val username: String,
@@ -48,18 +50,33 @@ data class MainUiState(
     val desktops: List<Desktop> = emptyList(),
     val lastClickInfo: String = "",
     val connectionState: ConnectionState = ConnectionState.IDLE,
+    // Update notification
+    val updateAvailable: String = "",
 )
 
-class MainViewModel : ViewModel() {
+class MainViewModel(app: Application) : AndroidViewModel(app) {
 
-    private val relay = RelayWebSocket(WS_URL)
+    private val relay = RelayWebSocket(WS_URL, app.applicationContext)
     private val http = OkHttpClient()
     private var authToken: String = ""
+    private val prefs = app.getSharedPreferences("gorilla_prefs", Context.MODE_PRIVATE)
 
     private val _uiState = MutableStateFlow(MainUiState())
     val uiState = _uiState.asStateFlow()
 
     init {
+        // Check first launch
+        val isFirstLaunch = prefs.getBoolean("onboarding_done", false).not()
+        if (isFirstLaunch) {
+            _uiState.update { it.copy(screen = Screen.ONBOARDING) }
+        }
+
+        // Restore saved room password
+        val savedRoomPwd = prefs.getString("room_password", "") ?: ""
+        if (savedRoomPwd.isNotEmpty()) {
+            _uiState.update { it.copy(roomPassword = savedRoomPwd) }
+        }
+
         viewModelScope.launch {
             relay.connectionState.collect { state ->
                 _uiState.update { it.copy(connectionState = state) }
@@ -74,8 +91,40 @@ class MainViewModel : ViewModel() {
                     is RelayEvent.AuthOk    -> _uiState.update { it.copy(screen = Screen.OPEN_ROOM, isOpeningRoom = false) }
                     is RelayEvent.RoomOpened -> _uiState.update { it.copy(screen = Screen.ROOM_ACTIVE, isOpeningRoom = false) }
                     is RelayEvent.DesktopList -> _uiState.update { it.copy(desktops = event.desktops) }
+                    is RelayEvent.ClickAck  -> {
+                        _uiState.update { s ->
+                            s.copy(desktops = s.desktops.map { d ->
+                                if (d.id == event.socketId) d.copy(latencyMs = event.latencyMs) else d
+                            })
+                        }
+                    }
                     is RelayEvent.Error     -> _uiState.update { it.copy(roomError = event.message, isOpeningRoom = false) }
                     is RelayEvent.Disconnected -> _uiState.update { it.copy(screen = Screen.HOME) }
+                }
+            }
+        }
+
+        // Check for server update
+        checkForUpdate()
+    }
+
+    fun onboardingDone() {
+        prefs.edit().putBoolean("onboarding_done", true).apply()
+        _uiState.update { it.copy(screen = Screen.LOGIN) }
+    }
+
+    // ── Update check ──────────────────────────────────────────────
+    private fun checkForUpdate() {
+        viewModelScope.launch {
+            runCatching {
+                withContext(Dispatchers.IO) {
+                    val req = Request.Builder().url("$HTTP_URL/version").build()
+                    val resp = http.newCall(req).execute()
+                    JSONObject(resp.body!!.string()).getString("version")
+                }
+            }.onSuccess { serverVersion ->
+                if (serverVersion != CLIENT_VERSION) {
+                    _uiState.update { it.copy(updateAvailable = "Server v$serverVersion available (you have v$CLIENT_VERSION)") }
                 }
             }
         }
@@ -196,7 +245,10 @@ class MainViewModel : ViewModel() {
     }
 
     // ── Room ──────────────────────────────────────────────────────
-    fun onRoomPasswordChange(v: String) = _uiState.update { it.copy(roomPassword = v) }
+    fun onRoomPasswordChange(v: String) {
+        _uiState.update { it.copy(roomPassword = v) }
+        prefs.edit().putString("room_password", v).apply()
+    }
 
     fun goToOpenRoom() {
         _uiState.update { it.copy(screen = Screen.OPEN_ROOM, roomError = "") }
@@ -210,27 +262,39 @@ class MainViewModel : ViewModel() {
         relay.openRoom(pw)
     }
 
+    fun toggleDesktop(id: String, selected: Boolean) {
+        relay.selectDesktop(id, selected)
+        _uiState.update { s ->
+            s.copy(desktops = s.desktops.map { d ->
+                if (d.id == id) d.copy(selected = selected) else d
+            })
+        }
+    }
+
     fun sendClick(cursor: String) {
         if (_uiState.value.screen != Screen.ROOM_ACTIVE) return
-        relay.sendClick(cursor)
+        val anySelected = _uiState.value.desktops.any { it.selected }
+        val mode = if (anySelected) "selected" else "all"
+        relay.sendClick(cursor, mode)
         _uiState.update { it.copy(lastClickInfo = "Sent click: Cursor $cursor") }
     }
 
     fun goHome() {
         relay.disconnect()
-        _uiState.update { it.copy(screen = Screen.HOME, roomPassword = "", desktops = emptyList(), lastClickInfo = "") }
+        _uiState.update { it.copy(screen = Screen.HOME, roomPassword = prefs.getString("room_password","") ?: "", desktops = emptyList(), lastClickInfo = "") }
     }
 
     fun logout() {
         relay.disconnect()
         authToken = ""
-        _uiState.update { MainUiState() }
+        _uiState.update { MainUiState(roomPassword = prefs.getString("room_password","") ?: "") }
     }
 
     override fun onCleared() { super.onCleared(); relay.disconnect() }
 
     companion object {
-        const val HTTP_URL = "http://103.164.3.212:8080"
-        const val WS_URL   = "ws://103.164.3.212:8080"
+        const val CLIENT_VERSION = "1.1.0"
+        const val HTTP_URL = "https://103.164.3.212:8080"
+        const val WS_URL   = "wss://103.164.3.212:8080"
     }
 }

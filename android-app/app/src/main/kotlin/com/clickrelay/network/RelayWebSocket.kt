@@ -1,5 +1,6 @@
 package com.clickrelay.network
 
+import android.content.Context
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asSharedFlow
@@ -10,27 +11,34 @@ import okhttp3.Response
 import okhttp3.WebSocket
 import okhttp3.WebSocketListener
 import org.json.JSONObject
+import java.security.KeyStore
+import java.security.cert.CertificateFactory
 import java.util.concurrent.TimeUnit
+import javax.net.ssl.SSLContext
+import javax.net.ssl.TrustManagerFactory
+import javax.net.ssl.X509TrustManager
 
-data class Desktop(val id: String, val deviceName: String, val selected: Boolean)
+data class Desktop(
+    val id: String,
+    val deviceName: String,
+    val selected: Boolean = true,
+    val latencyMs: Int? = null,
+)
 
 sealed interface RelayEvent {
     data object AuthOk : RelayEvent
     data object RoomOpened : RelayEvent
     data class DesktopList(val desktops: List<Desktop>) : RelayEvent
+    data class ClickAck(val socketId: String, val latencyMs: Int) : RelayEvent
     data class Error(val message: String) : RelayEvent
     data object Disconnected : RelayEvent
 }
 
 enum class ConnectionState { IDLE, CONNECTING, CONNECTED, DISCONNECTED }
 
-class RelayWebSocket(private val serverUrl: String) {
+class RelayWebSocket(private val serverUrl: String, private val context: Context? = null) {
 
-    private val client = OkHttpClient.Builder()
-        .pingInterval(20, TimeUnit.SECONDS)
-        .connectTimeout(10, TimeUnit.SECONDS)
-        .build()
-
+    private val client = buildClient()
     private var ws: WebSocket? = null
 
     private val _connectionState = MutableStateFlow(ConnectionState.IDLE)
@@ -38,6 +46,42 @@ class RelayWebSocket(private val serverUrl: String) {
 
     private val _events = MutableSharedFlow<RelayEvent>(extraBufferCapacity = 16)
     val events = _events.asSharedFlow()
+
+    private fun buildClient(): OkHttpClient {
+        return try {
+            val ctx = context ?: return defaultClient()
+            val cf = CertificateFactory.getInstance("X.509")
+            val certInput = ctx.resources.openRawResource(
+                ctx.resources.getIdentifier("server_cert", "raw", ctx.packageName)
+            )
+            val cert = cf.generateCertificate(certInput)
+            certInput.close()
+
+            val keyStore = KeyStore.getInstance(KeyStore.getDefaultType()).apply {
+                load(null, null)
+                setCertificateEntry("gorilla", cert)
+            }
+            val tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm())
+            tmf.init(keyStore)
+            val trustManager = tmf.trustManagers[0] as X509TrustManager
+            val sslContext = SSLContext.getInstance("TLS")
+            sslContext.init(null, arrayOf(trustManager), null)
+
+            OkHttpClient.Builder()
+                .sslSocketFactory(sslContext.socketFactory, trustManager)
+                .hostnameVerifier { _, _ -> true }
+                .pingInterval(20, TimeUnit.SECONDS)
+                .connectTimeout(10, TimeUnit.SECONDS)
+                .build()
+        } catch (e: Exception) {
+            defaultClient()
+        }
+    }
+
+    private fun defaultClient() = OkHttpClient.Builder()
+        .pingInterval(20, TimeUnit.SECONDS)
+        .connectTimeout(10, TimeUnit.SECONDS)
+        .build()
 
     fun connect(token: String) {
         _connectionState.value = ConnectionState.CONNECTING
@@ -67,6 +111,12 @@ class RelayWebSocket(private val serverUrl: String) {
                         }
                         _events.tryEmit(RelayEvent.DesktopList(list))
                     }
+                    "click_ack" -> _events.tryEmit(
+                        RelayEvent.ClickAck(
+                            socketId = msg.optString("socketId"),
+                            latencyMs = msg.optInt("latencyMs", -1),
+                        )
+                    )
                     "error" -> _events.tryEmit(RelayEvent.Error(msg.optString("message")))
                 }
             }
@@ -90,11 +140,19 @@ class RelayWebSocket(private val serverUrl: String) {
         }.toString())
     }
 
-    fun sendClick(cursor: String, mode: String = "all") {
+    fun sendClick(cursor: String, mode: String = "selected") {
         ws?.send(JSONObject().apply {
             put("type", "click")
             put("cursor", cursor)
             put("mode", mode)
+        }.toString())
+    }
+
+    fun selectDesktop(id: String, selected: Boolean) {
+        ws?.send(JSONObject().apply {
+            put("type", "select_desktop")
+            put("id", id)
+            put("selected", selected)
         }.toString())
     }
 

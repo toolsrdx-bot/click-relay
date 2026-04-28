@@ -1,4 +1,5 @@
-const http = require('http');
+const https = require('https');
+const fs = require('fs');
 const WebSocket = require('ws');
 const express = require('express');
 const Database = require('better-sqlite3');
@@ -7,6 +8,19 @@ const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 
 const PORT = process.env.PORT || 8080;
+const SERVER_VERSION = '1.1.0';
+
+const tlsOptions = (() => {
+  try {
+    return {
+      key:  fs.readFileSync('./certs/server.key'),
+      cert: fs.readFileSync('./certs/server.crt'),
+    };
+  } catch {
+    console.warn('[TLS] Cert files not found — falling back to HTTP (not secure)');
+    return null;
+  }
+})();
 const JWT_SECRET = process.env.JWT_SECRET || crypto.randomBytes(64).toString('hex');
 const SALT_ROUNDS = 10;
 
@@ -126,8 +140,8 @@ app.get('/', (req, res) => {
   </style>
 </head>
 <body>
-  <h1>🦍 Gorilla</h1>
-  <p class="sub">Click relay system — downloads</p>
+  <h1>🦍 Gorilla <span style="font-size:14px;color:#6c7086">v${SERVER_VERSION}</span></h1>
+  <p class="sub">Click relay system — downloads &nbsp;·&nbsp; <a href="/admin" style="color:#89b4fa">Admin Panel</a></p>
   <div class="grid">
     <div class="card">
       <span class="tag">Android</span>
@@ -147,6 +161,12 @@ app.get('/', (req, res) => {
       <p>Linux desktop client — run with Python 3 + websockets.</p>
       <a class="btn" href="/download/client-linux.py">Download client.py</a>
     </div>
+    <div class="card">
+      <span class="tag">TLS Cert</span>
+      <h2>Server Certificate</h2>
+      <p>Place <code style="background:#45475a;padding:2px 5px;border-radius:4px">server_cert.crt</code> alongside the desktop client for secure TLS connections.</p>
+      <a class="btn" href="/download/server_cert.crt">Download Cert</a>
+    </div>
   </div>
   <p style="margin-top:32px;color:#45475a;font-size:12px;">
     For latest builds visit: <a href="${ACTIONS_URL}" style="color:#6c7086;">${ACTIONS_URL}</a>
@@ -155,8 +175,21 @@ app.get('/', (req, res) => {
 </html>`);
 });
 
-// ─── Direct file downloads ────────────────────────────────────────
+// ─── Version endpoint ─────────────────────────────────────────────
+app.get('/version', (req, res) => {
+  res.json({ version: SERVER_VERSION });
+});
+
+// ─── Web admin panel ──────────────────────────────────────────────
 const path = require('path');
+app.get('/admin', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public/admin.html'));
+});
+
+// ─── Direct file downloads ────────────────────────────────────────
+app.get('/download/server_cert.crt', (req, res) => {
+  res.download(path.join(__dirname, 'certs/server.crt'), 'server_cert.crt');
+});
 app.get('/download/client-linux.py', (req, res) => {
   res.download(path.join(__dirname, '../desktop-client-linux/client.py'), 'gorilla-client-linux.py');
 });
@@ -259,9 +292,15 @@ app.patch('/admin/users/:username/role', authMiddleware, (req, res) => {
   res.json({ ok: true });
 });
 
-// ─── WebSocket server ─────────────────────────────────────────────
-const server = http.createServer(app);
-const wss = new WebSocket.Server({ server });
+// ─── HTTP/HTTPS + WebSocket server ───────────────────────────────
+const wss = new WebSocket.Server({ noServer: true });
+
+// Upgrade only /ws path (everything else stays as REST/static)
+function attachWss(srv) {
+  srv.on('upgrade', (req, socket, head) => {
+    wss.handleUpgrade(req, socket, head, ws => wss.emit('connection', ws, req));
+  });
+}
 
 wss.on('connection', (ws, req) => {
   const ip = req.socket.remoteAddress;
@@ -429,6 +468,22 @@ function handleMessage(ws, msg) {
     return;
   }
 
+  // ── Desktop: click_ack (latency measurement) ─────────────────
+  if (type === 'click_ack') {
+    const client = clients.get(ws);
+    if (!client || client.accountType !== 'desktop') return;
+    const room = rooms.get(client.roomOwner);
+    if (!room) return;
+    const latencyMs = Date.now() - (msg.timestamp || 0);
+    sendTo(room.ws, {
+      type: 'click_ack',
+      socketId: client.socketId,
+      deviceName: client.deviceName,
+      latencyMs,
+    });
+    return;
+  }
+
   // ── Ping ──────────────────────────────────────────────────────
   if (type === 'ping') {
     sendTo(ws, { type: 'pong' });
@@ -438,7 +493,13 @@ function handleMessage(ws, msg) {
   sendTo(ws, { type: 'error', message: `Unknown type: ${type}` });
 }
 
+const server = tlsOptions
+  ? https.createServer(tlsOptions, app)
+  : require('http').createServer(app);
+
+attachWss(server);
+
 server.listen(PORT, '0.0.0.0', () => {
-  log(`Gorilla relay running on port ${PORT}`);
+  log(`Gorilla relay v${SERVER_VERSION} on port ${PORT} (${tlsOptions ? 'TLS/wss' : 'plain/ws'})`);
   log('REST API + WebSocket ready');
 });

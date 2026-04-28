@@ -1,8 +1,13 @@
 """Gorilla Click — Windows desktop client. No account needed, just room credentials."""
-import asyncio, ctypes, json, threading, tkinter as tk
+import asyncio, ctypes, json, ssl, threading, tkinter as tk
+from tkinter import messagebox
+import urllib.request
 
-SERVER_HOST = "103.164.3.212"
-WS_URL      = f"ws://{SERVER_HOST}:8080"
+SERVER_HOST    = "103.164.3.212"
+SERVER_PORT    = 8080
+WS_URL         = f"wss://{SERVER_HOST}:{SERVER_PORT}"
+HTTP_BASE      = f"https://{SERVER_HOST}:{SERVER_PORT}"
+CLIENT_VERSION = "1.1.0"
 
 # Palette
 BG   = "#0D1117"
@@ -19,6 +24,39 @@ try:
     import websockets
 except ImportError:
     raise SystemExit("pip install websockets")
+
+try:
+    import pystray
+    from PIL import Image, ImageDraw
+    TRAY_OK = True
+except ImportError:
+    TRAY_OK = False
+
+def make_ssl():
+    import pathlib
+    cert_path = pathlib.Path(__file__).parent / "server_cert.crt"
+    ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+    ctx.check_hostname = False
+    if cert_path.exists():
+        ctx.load_verify_locations(str(cert_path))
+    else:
+        ctx.verify_mode = ssl.CERT_NONE
+    return ctx
+
+SSL_CTX = make_ssl()
+
+def check_version():
+    try:
+        ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+        ctx.check_hostname = False; ctx.verify_mode = ssl.CERT_NONE
+        with urllib.request.urlopen(f"{HTTP_BASE}/version", context=ctx, timeout=4) as r:
+            data = json.loads(r.read())
+        sv = data.get("version", "")
+        if sv and sv != CLIENT_VERSION:
+            return f"Update available: server v{sv}  (you have v{CLIENT_VERSION})"
+    except Exception:
+        pass
+    return ""
 
 MOUSEEVENTF_LEFTDOWN = 0x0002
 MOUSEEVENTF_LEFTUP   = 0x0004
@@ -76,8 +114,9 @@ class JoinWindow:
     def _build(self):
         tk.Label(self.root, text="Gorilla Click", font=('Arial',20,'bold'),
                  bg=BG, fg=TEXT).pack(pady=(28,2))
-        tk.Label(self.root, text="Join a Room", font=('Arial',10),
+        tk.Label(self.root, text=f"Join a Room  (v{CLIENT_VERSION})", font=('Arial',10),
                  bg=BG, fg=SUB).pack(pady=(0,18))
+        threading.Thread(target=self._check_ver, daemon=True).start()
         self.f_cu = self._field("Controller Username")
         self.f_rp = self._field("Room Password", show='•')
         self.f_dn = self._field("Device Name  (e.g. Office PC)")
@@ -88,6 +127,11 @@ class JoinWindow:
                         relief='flat', pady=10, cursor='hand2')
         btn.pack(fill='x', padx=32, pady=(6,0))
         self.root.bind('<Return>', lambda _: self._submit())
+
+    def _check_ver(self):
+        msg = check_version()
+        if msg:
+            self.root.after(0, lambda: self.err.config(text=msg, fg=AMB))
 
     def _submit(self):
         cu, rp, dn = self.f_cu.get().strip(), self.f_rp.get(), self.f_dn.get().strip()
@@ -115,12 +159,15 @@ class DesktopClient:
 
         self.root = tk.Tk()
         self.root.title("Gorilla Click")
-        self.root.geometry("380x200+40+40")
+        self.root.geometry("380x210+40+40")
         self.root.configure(bg=BG)
         self.root.attributes('-topmost', True)
         self._build_ui()
         self._spawn_cursors()
         self._start_loop()
+        self._setup_tray()
+        self.root.protocol("WM_DELETE_WINDOW", self._on_close)
+        threading.Thread(target=self._version_check_bg, daemon=True).start()
 
     def _build_ui(self):
         # Header row
@@ -176,7 +223,8 @@ class DesktopClient:
             self._set_buttons_connected(),
         ))
         try:
-            self.ws = await websockets.connect(WS_URL, ping_interval=15, ping_timeout=8)
+            self.ws = await websockets.connect(
+                WS_URL, ssl=SSL_CTX, ping_interval=15, ping_timeout=8)
             await self.ws.send(json.dumps({
                 'type': 'join_room',
                 'controllerUsername': self.ctrl_user,
@@ -217,6 +265,10 @@ class DesktopClient:
             c = msg.get('cursor')
             x, y = (self.cursor_a if c == 'A' else self.cursor_b).click()
             self._log(f'Click {c} at ({x},{y})')
+            if self.ws and msg.get('timestamp'):
+                asyncio.run_coroutine_threadsafe(
+                    self.ws.send(json.dumps({'type': 'click_ack', 'timestamp': msg['timestamp']})),
+                    self.loop)
         elif t == 'controller_disconnected':
             # Room is gone — close WS and switch UI to disconnected state
             self._log('Controller closed the room.')
@@ -231,6 +283,46 @@ class DesktopClient:
 
     def _log(self, text):
         self.root.after(0, lambda: self.log_var.set(text))
+
+    def _setup_tray(self):
+        if not TRAY_OK:
+            return
+        img = Image.new('RGB', (64, 64), color='#0D1117')
+        d = ImageDraw.Draw(img)
+        d.ellipse([12,12,52,52], fill='#4FC3F7')
+        menu = pystray.Menu(
+            pystray.MenuItem('Show / Hide', self._toggle_window, default=True),
+            pystray.MenuItem('Disconnect', lambda: self.root.after(0, self._disconnect)),
+            pystray.Menu.SEPARATOR,
+            pystray.MenuItem('Quit', lambda: self.root.after(0, self._quit)),
+        )
+        self._tray = pystray.Icon('Gorilla Click', img, 'Gorilla Click', menu)
+        threading.Thread(target=self._tray.run, daemon=True).start()
+
+    def _toggle_window(self):
+        if self.root.state() == 'withdrawn':
+            self.root.after(0, self.root.deiconify)
+        else:
+            self.root.after(0, self.root.withdraw)
+
+    def _on_close(self):
+        if TRAY_OK:
+            self.root.withdraw()
+        else:
+            self._quit()
+
+    def _quit(self):
+        self._user_disconnect = True
+        if self.ws:
+            asyncio.run_coroutine_threadsafe(self.ws.close(), self.loop)
+        if TRAY_OK and hasattr(self, '_tray'):
+            self._tray.stop()
+        self.root.destroy()
+
+    def _version_check_bg(self):
+        msg = check_version()
+        if msg:
+            self.root.after(0, lambda: messagebox.showinfo('Gorilla Update', msg))
 
     def _set_buttons_connected(self):
         self.btn_reconnect.pack_forget()

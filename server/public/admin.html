@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Gorilla — Admin</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0D1117;color:#E6EDF3;font-family:Arial,sans-serif;min-height:100vh}
+.app{max-width:860px;margin:0 auto;padding:32px 20px}
+h1{font-size:24px;margin-bottom:4px}
+.sub{color:#6E7681;font-size:13px;margin-bottom:32px}
+/* Login */
+#login-section{max-width:360px;margin:80px auto}
+#login-section h2{margin-bottom:20px;font-size:20px}
+.field{margin-bottom:14px}
+.field label{display:block;font-size:12px;color:#6E7681;margin-bottom:4px}
+.field input{width:100%;background:#161B22;border:1px solid #30363D;border-radius:8px;
+             padding:10px 12px;color:#E6EDF3;font-size:14px;outline:none}
+.field input:focus{border-color:#4FC3F7}
+.btn{padding:10px 20px;border:none;border-radius:8px;font-size:14px;font-weight:bold;
+     cursor:pointer;width:100%;margin-top:4px}
+.btn-primary{background:#4FC3F7;color:#0D1117}
+.btn-primary:hover{background:#38B2E8}
+.btn-sm{width:auto;padding:5px 12px;font-size:12px}
+.btn-danger{background:#FF7B72;color:#0D1117}
+.btn-warn{background:#FFA657;color:#0D1117}
+.err{color:#FF7B72;font-size:13px;margin-top:8px}
+/* Panel */
+#panel-section{display:none}
+.topbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:24px}
+.topbar h2{font-size:20px}
+.topbar span{color:#6E7681;font-size:13px}
+.role-badge{display:inline-block;padding:2px 8px;border-radius:6px;font-size:11px;font-weight:bold}
+.badge-king{background:#D2A8FF33;color:#D2A8FF}
+.badge-queen{background:#FFA65733;color:#FFA657}
+.badge-rook{background:#4FC3F733;color:#4FC3F7}
+.badge-pawn{background:#6E768133;color:#6E7681}
+table{width:100%;border-collapse:collapse;margin-bottom:24px}
+th{text-align:left;padding:10px 12px;font-size:12px;color:#6E7681;border-bottom:1px solid #21262D}
+td{padding:10px 12px;font-size:14px;border-bottom:1px solid #161B22}
+tr:hover td{background:#161B22}
+.actions{display:flex;gap:6px}
+/* Create user card */
+.card{background:#161B22;border-radius:12px;padding:20px;margin-bottom:24px}
+.card h3{font-size:16px;margin-bottom:16px}
+.row{display:flex;gap:12px;flex-wrap:wrap}
+.row .field{flex:1;min-width:140px}
+select{width:100%;background:#161B22;border:1px solid #30363D;border-radius:8px;
+       padding:10px 12px;color:#E6EDF3;font-size:14px;outline:none;cursor:pointer}
+select:focus{border-color:#4FC3F7}
+.status{padding:8px 12px;border-radius:8px;font-size:13px;margin-top:8px;display:none}
+.status.ok{background:#56D36422;color:#56D364;display:block}
+.status.err{background:#FF7B7222;color:#FF7B72;display:block}
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>🦍 Gorilla Admin</h1>
+  <p class="sub">User management panel — king & queen only</p>
+
+  <!-- Login -->
+  <div id="login-section">
+    <h2>Sign in</h2>
+    <div class="field"><label>Username</label><input id="un" type="text" autocomplete="username"></div>
+    <div class="field"><label>Password</label><input id="pw" type="password" autocomplete="current-password"></div>
+    <button class="btn btn-primary" onclick="doLogin()">Sign In</button>
+    <div class="err" id="login-err"></div>
+  </div>
+
+  <!-- Panel -->
+  <div id="panel-section">
+    <div class="topbar">
+      <h2>Users</h2>
+      <span id="whoami"></span>
+      <button class="btn btn-sm btn-danger" onclick="logout()">Logout</button>
+    </div>
+
+    <!-- Create user -->
+    <div class="card">
+      <h3>Create User</h3>
+      <div class="row">
+        <div class="field"><label>Username</label><input id="nu" type="text" placeholder="newuser"></div>
+        <div class="field"><label>Password</label><input id="np" type="password" placeholder="••••••"></div>
+        <div class="field"><label>Role</label>
+          <select id="nr"><option value="rook">rook</option><option value="pawn">pawn</option><option value="queen">queen</option></select>
+        </div>
+      </div>
+      <button class="btn btn-primary btn-sm" style="margin-top:12px" onclick="createUser()">Create</button>
+      <div class="status" id="create-status"></div>
+    </div>
+
+    <!-- User table -->
+    <table>
+      <thead><tr><th>Username</th><th>Role</th><th>Account</th><th>Created by</th><th>Actions</th></tr></thead>
+      <tbody id="user-tbody"></tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+let token = '';
+let myRole = '';
+const RANK = {king:4,queen:3,rook:2,pawn:1};
+
+const base = location.origin;
+
+async function api(method, path, body) {
+  const r = await fetch(base + path, {
+    method,
+    headers: {'Content-Type':'application/json', ...(token ? {'Authorization':'Bearer '+token} : {})},
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  const json = await r.json().catch(()=>({}));
+  return {ok: r.ok, json};
+}
+
+async function doLogin() {
+  const un = document.getElementById('un').value.trim();
+  const pw = document.getElementById('pw').value;
+  const {ok, json} = await api('POST', '/login', {username:un, password:pw});
+  if (!ok) { document.getElementById('login-err').textContent = json.error || 'Login failed'; return; }
+  if (json.accountType !== 'controller') {
+    document.getElementById('login-err').textContent = 'Not a controller account.'; return;
+  }
+  if (!['king','queen'].includes(json.role)) {
+    document.getElementById('login-err').textContent = 'Admin access requires king or queen role.'; return;
+  }
+  token = json.token; myRole = json.role;
+  document.getElementById('login-section').style.display = 'none';
+  document.getElementById('panel-section').style.display = 'block';
+  document.getElementById('whoami').textContent = `${un} · ${myRole}`;
+  // Populate role dropdown based on actor rank
+  const nr = document.getElementById('nr');
+  nr.innerHTML = '';
+  ['queen','rook','pawn'].filter(r => RANK[r] < RANK[myRole]).forEach(r => {
+    nr.innerHTML += `<option value="${r}">${r}</option>`;
+  });
+  loadUsers();
+}
+
+function logout() {
+  token = ''; myRole = '';
+  document.getElementById('panel-section').style.display = 'none';
+  document.getElementById('login-section').style.display = 'block';
+  document.getElementById('login-err').textContent = '';
+}
+
+async function loadUsers() {
+  const {ok, json} = await api('GET', '/admin/users');
+  if (!ok) return;
+  const tbody = document.getElementById('user-tbody');
+  tbody.innerHTML = '';
+  json.forEach(u => {
+    const canManage = RANK[myRole] > RANK[u.role] && u.username !== 'king';
+    const roleOpts = ['queen','rook','pawn'].filter(r => RANK[r] < RANK[myRole])
+      .map(r => `<option value="${r}" ${r===u.role?'selected':''}>${r}</option>`).join('');
+    tbody.innerHTML += `<tr>
+      <td>${u.username}</td>
+      <td><span class="role-badge badge-${u.role}">${u.role}</span></td>
+      <td>${u.account_type}</td>
+      <td>${u.created_by||'—'}</td>
+      <td class="actions">${canManage ? `
+        <select id="sel-${u.username}" class="btn-sm" style="padding:4px 8px;width:auto">${roleOpts}</select>
+        <button class="btn btn-sm btn-warn" onclick="changeRole('${u.username}')">Set</button>
+        <button class="btn btn-sm btn-danger" onclick="deleteUser('${u.username}')">Delete</button>
+      ` : '—'}</td>
+    </tr>`;
+  });
+}
+
+async function createUser() {
+  const username = document.getElementById('nu').value.trim();
+  const password = document.getElementById('np').value;
+  const role = document.getElementById('nr').value;
+  const st = document.getElementById('create-status');
+  st.className = 'status';
+  if (!username || !password) { st.className='status err'; st.textContent='All fields required'; return; }
+  const {ok, json} = await api('POST', '/admin/users', {username, password, role, accountType:'controller'});
+  if (ok) {
+    st.className='status ok'; st.textContent=`User "${username}" created.`;
+    document.getElementById('nu').value=''; document.getElementById('np').value='';
+    loadUsers();
+  } else {
+    st.className='status err'; st.textContent=json.error||'Failed';
+  }
+}
+
+async function deleteUser(username) {
+  if (!confirm(`Delete user "${username}"?`)) return;
+  await api('DELETE', `/admin/users/${username}`);
+  loadUsers();
+}
+
+async function changeRole(username) {
+  const newRole = document.getElementById(`sel-${username}`).value;
+  await api('PATCH', `/admin/users/${username}/role`, {newRole});
+  loadUsers();
+}
+
+document.addEventListener('keydown', e => { if (e.key==='Enter') doLogin(); });
+</script>
+</body>
+</html>

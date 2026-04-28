@@ -1,6 +1,7 @@
 package com.clickrelay.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -29,12 +30,10 @@ private val SUB  = Color(0xFF6E7681)
 fun MainScreen(
     uiState: MainUiState,
     onDisconnect: () -> Unit,
+    onToggleDesktop: (id: String, selected: Boolean) -> Unit,
 ) {
     Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(BG)
-            .padding(24.dp),
+        modifier = Modifier.fillMaxSize().background(BG).padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Spacer(Modifier.height(32.dp))
@@ -59,13 +58,17 @@ fun MainScreen(
 
         Spacer(Modifier.height(20.dp))
 
-        // Desktop list
+        // Desktop list with selection + latency
         Surface(color = SURF, shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth().weight(1f)) {
             Column(modifier = Modifier.padding(16.dp)) {
-                Text(
-                    "Connected Desktops (${uiState.desktops.size})",
-                    color = TEXT, fontWeight = FontWeight.Bold, fontSize = 14.sp,
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        "Connected Desktops (${uiState.desktops.size})",
+                        color = TEXT, fontWeight = FontWeight.Bold, fontSize = 14.sp,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Text("Tap to target", color = SUB, fontSize = 11.sp)
+                }
                 Spacer(Modifier.height(8.dp))
                 if (uiState.desktops.isEmpty()) {
                     Box(modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp), contentAlignment = Alignment.Center) {
@@ -73,8 +76,8 @@ fun MainScreen(
                     }
                 } else {
                     LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        items(uiState.desktops) { desktop ->
-                            DesktopItem(desktop)
+                        items(uiState.desktops, key = { it.id }) { desktop ->
+                            DesktopItem(desktop, onToggle = { onToggleDesktop(desktop.id, !desktop.selected) })
                         }
                     }
                 }
@@ -102,15 +105,35 @@ fun MainScreen(
 }
 
 @Composable
-private fun DesktopItem(desktop: Desktop) {
-    Surface(color = Color(0xFF1C2333), shape = RoundedCornerShape(10.dp), modifier = Modifier.fillMaxWidth()) {
+private fun DesktopItem(desktop: Desktop, onToggle: () -> Unit) {
+    val bgColor = if (desktop.selected) Color(0xFF1C2B3A) else Color(0xFF1C2333)
+    val dotColor = if (desktop.selected) GREEN else SUB
+
+    Surface(
+        color = bgColor,
+        shape = RoundedCornerShape(10.dp),
+        modifier = Modifier.fillMaxWidth().clickable { onToggle() },
+    ) {
         Row(
             modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text("●", color = GREEN, fontSize = 12.sp)
+            Text("●", color = dotColor, fontSize = 12.sp)
             Spacer(Modifier.width(8.dp))
             Text(desktop.deviceName, color = TEXT, fontSize = 14.sp, modifier = Modifier.weight(1f))
+            // Latency badge
+            val latency = desktop.latencyMs
+            if (latency != null && latency >= 0) {
+                val latColor = when {
+                    latency < 60  -> GREEN
+                    latency < 150 -> Color(0xFFFFA657)
+                    else          -> RED
+                }
+                Surface(color = latColor.copy(alpha = 0.15f), shape = RoundedCornerShape(6.dp)) {
+                    Text("${latency}ms", color = latColor, fontSize = 11.sp, fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
+                }
+            }
         }
     }
 }
