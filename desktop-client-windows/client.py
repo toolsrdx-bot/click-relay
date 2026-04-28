@@ -65,7 +65,7 @@ class LoginWindow:
     def __init__(self):
         self.root   = tk.Tk()
         self.root.title("Gorilla Click — Login")
-        self.root.geometry("340x390"); self.root.configure(bg='#1e1e2e'); self.root.resizable(False,False)
+        self.root.geometry("340x440"); self.root.configure(bg='#1e1e2e'); self.root.resizable(False,False)
         self.result = None
         self._build()
 
