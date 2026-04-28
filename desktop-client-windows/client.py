@@ -1,11 +1,7 @@
-"""Gorilla Click — Windows desktop client with login and room join.
-Uses Win32 SendInput via ctypes. No external deps beyond `websockets`.
-"""
+"""Gorilla Click — Windows desktop client. No account needed, just room credentials."""
 import asyncio, ctypes, json, threading, tkinter as tk
-import urllib.request, urllib.error
 
 SERVER_HOST = "103.164.3.212"
-HTTP_URL    = f"http://{SERVER_HOST}:8080"
 WS_URL      = f"ws://{SERVER_HOST}:8080"
 
 try:
@@ -47,25 +43,11 @@ class FloatingCursor:
         self.win.after(80, self.win.deiconify)
         return x, y
 
-def http_post(path, payload, token=None):
-    req = urllib.request.Request(f"{HTTP_URL}{path}", data=json.dumps(payload).encode(),
-                                  headers={'Content-Type':'application/json'})
-    if token: req.add_header('Authorization', f'Bearer {token}')
-    try:
-        with urllib.request.urlopen(req, timeout=10) as r:
-            return json.loads(r.read()), None
-    except urllib.error.HTTPError as e:
-        try:    err = json.loads(e.read()).get('error', str(e))
-        except: err = str(e)
-        return None, err
-    except Exception as e:
-        return None, str(e)
-
-class LoginWindow:
+class JoinWindow:
     def __init__(self):
         self.root   = tk.Tk()
-        self.root.title("Gorilla Click — Login")
-        self.root.geometry("340x500"); self.root.configure(bg='#1e1e2e'); self.root.resizable(True,True)
+        self.root.title("Gorilla Click — Join Room")
+        self.root.geometry("340x300"); self.root.configure(bg='#1e1e2e'); self.root.resizable(True,True)
         self.result = None
         self._build()
 
@@ -80,10 +62,8 @@ class LoginWindow:
     def _build(self):
         tk.Label(self.root, text="Gorilla Click", font=('Arial',18,'bold'),
                  bg='#1e1e2e', fg='#cdd6f4').pack(pady=(24,2))
-        tk.Label(self.root, text="Desktop Login", font=('Arial',10),
+        tk.Label(self.root, text="Join a Room", font=('Arial',10),
                  bg='#1e1e2e', fg='#6c7086').pack(pady=(0,16))
-        self.f_u  = self._field("Your Username")
-        self.f_p  = self._field("Your Password", show='•')
         self.f_cu = self._field("Controller Username")
         self.f_rp = self._field("Room Password", show='•')
         self.f_dn = self._field("Device Name  (e.g. Office PC)")
@@ -95,25 +75,18 @@ class LoginWindow:
         self.root.bind('<Return>', lambda _: self._submit())
 
     def _submit(self):
-        u,p,cu,rp,dn = (self.f_u.get().strip(), self.f_p.get(),
-                         self.f_cu.get().strip(), self.f_rp.get(), self.f_dn.get().strip())
-        if not all([u,p,cu,rp,dn]):
+        cu, rp, dn = self.f_cu.get().strip(), self.f_rp.get(), self.f_dn.get().strip()
+        if not all([cu, rp, dn]):
             self.err.config(text='All fields are required.'); return
-        self.err.config(text='Logging in...'); self.root.update()
-        res, err = http_post('/login', {'username':u,'password':p})
-        if err:    self.err.config(text=f'Login failed: {err}'); return
-        if res.get('accountType') != 'desktop':
-            self.err.config(text='Not a desktop account.'); return
-        self.result = (res['token'], cu, rp, dn)
+        self.result = (cu, rp, dn)
         self.root.destroy()
 
     def run(self):
         self.root.mainloop(); return self.result
 
 class DesktopClient:
-    def __init__(self, token, ctrl_user, room_pass, device_name):
-        self.token=token; self.ctrl_user=ctrl_user
-        self.room_pass=room_pass; self.device_name=device_name
+    def __init__(self, ctrl_user, room_pass, device_name):
+        self.ctrl_user=ctrl_user; self.room_pass=room_pass; self.device_name=device_name
         self.ws=None; self.loop=None
         self.root = tk.Tk()
         self.root.title("Gorilla Click")
@@ -149,32 +122,31 @@ class DesktopClient:
     async def _connect(self):
         try:
             self.ws = await websockets.connect(WS_URL, ping_interval=20, ping_timeout=10)
-            await self.ws.send(json.dumps({'type':'auth','token':self.token}))
+            await self.ws.send(json.dumps({
+                'type': 'join_room',
+                'controllerUsername': self.ctrl_user,
+                'roomPassword': self.room_pass,
+                'deviceName': self.device_name,
+            }))
             async for raw in self.ws:
                 self._handle(json.loads(raw))
         except Exception as e:
             self._log(f'Disconnected: {e}')
-            self.root.after(0, lambda: self.status_lbl.config(text='● Disconnected',fg='#f38ba8'))
+            self.root.after(0, lambda: self.status_lbl.config(text='● Disconnected', fg='#f38ba8'))
 
     def _handle(self, msg):
         t = msg.get('type')
-        if   t == 'auth_ok':   asyncio.run_coroutine_threadsafe(self._join_room(), self.loop)
-        elif t == 'room_joined':
-            self.root.after(0, lambda: self.status_lbl.config(text='● Connected',fg='#a6e3a1'))
+        if   t == 'room_joined':
+            self.root.after(0, lambda: self.status_lbl.config(text='● Connected', fg='#a6e3a1'))
             self._log(f"In {self.ctrl_user}'s room. Ready.")
         elif t == 'click':
             c = msg.get('cursor')
             x,y = (self.cursor_a if c=='A' else self.cursor_b).click()
             self._log(f'Click {c} at ({x},{y})')
         elif t == 'controller_disconnected':
-            self.root.after(0, lambda: self.status_lbl.config(text='● Controller offline',fg='#fab387'))
+            self.root.after(0, lambda: self.status_lbl.config(text='● Controller offline', fg='#fab387'))
         elif t == 'error':
             self._log(f"Error: {msg.get('message')}")
-
-    async def _join_room(self):
-        await self.ws.send(json.dumps({'type':'join_room',
-            'controllerUsername':self.ctrl_user, 'roomPassword':self.room_pass,
-            'deviceName':self.device_name}))
 
     def _log(self, text):
         self.root.after(0, lambda: self.log_var.set(text))
@@ -183,6 +155,6 @@ class DesktopClient:
         self.root.mainloop()
 
 if __name__ == '__main__':
-    result = LoginWindow().run()
+    result = JoinWindow().run()
     if result:
         DesktopClient(*result).run()

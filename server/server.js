@@ -318,28 +318,8 @@ function handleMessage(ws, msg) {
     return;
   }
 
-  const client = clients.get(ws);
-  if (!client) return sendTo(ws, { type: 'error', message: 'Not authenticated' });
-
-  // ── Controller: open room ─────────────────────────────────────
-  if (type === 'open_room') {
-    if (client.accountType !== 'controller')
-      return sendTo(ws, { type: 'error', message: 'Only controllers can open rooms' });
-    const { roomPassword } = msg;
-    if (!roomPassword) return sendTo(ws, { type: 'error', message: 'Room password required' });
-    const roomPassHash = bcrypt.hashSync(roomPassword, SALT_ROUNDS);
-    db.prepare('INSERT OR REPLACE INTO room_passwords (controller_username,password_hash) VALUES (?,?)')
-      .run(client.username, roomPassHash);
-    rooms.set(client.username, { ws, role: client.role, desktops: new Map() });
-    sendTo(ws, { type: 'room_opened', desktops: [] });
-    log(`Room opened: ${client.username}`);
-    return;
-  }
-
-  // ── Desktop: join room ────────────────────────────────────────
+  // ── Desktop: join room (no account needed, room password is auth) ─
   if (type === 'join_room') {
-    if (client.accountType !== 'desktop')
-      return sendTo(ws, { type: 'error', message: 'Only desktop accounts can join rooms' });
     const { controllerUsername, roomPassword, deviceName } = msg;
     if (!controllerUsername || !roomPassword || !deviceName)
       return sendTo(ws, { type: 'error', message: 'Missing fields' });
@@ -358,14 +338,31 @@ function handleMessage(ws, msg) {
 
     const socketId = crypto.randomUUID();
     room.desktops.set(socketId, { ws, deviceName, selected: true });
-    client.roomOwner = controllerUsername;
-    client.socketId = socketId;
-    client.deviceName = deviceName;
+    // track for disconnect cleanup
+    clients.set(ws, { accountType: 'desktop', roomOwner: controllerUsername, socketId, deviceName });
 
     sendTo(ws, { type: 'room_joined', controllerUsername, socketId });
     sendTo(room.ws, { type: 'desktop_joined', id: socketId, deviceName });
     sendTo(room.ws, { type: 'desktop_list', desktops: desktopList(room) });
     log(`Desktop joined room ${controllerUsername}: ${deviceName}`);
+    return;
+  }
+
+  const client = clients.get(ws);
+  if (!client) return sendTo(ws, { type: 'error', message: 'Not authenticated' });
+
+  // ── Controller: open room ─────────────────────────────────────
+  if (type === 'open_room') {
+    if (client.accountType !== 'controller')
+      return sendTo(ws, { type: 'error', message: 'Only controllers can open rooms' });
+    const { roomPassword } = msg;
+    if (!roomPassword) return sendTo(ws, { type: 'error', message: 'Room password required' });
+    const roomPassHash = bcrypt.hashSync(roomPassword, SALT_ROUNDS);
+    db.prepare('INSERT OR REPLACE INTO room_passwords (controller_username,password_hash) VALUES (?,?)')
+      .run(client.username, roomPassHash);
+    rooms.set(client.username, { ws, role: client.role, desktops: new Map() });
+    sendTo(ws, { type: 'room_opened', desktops: [] });
+    log(`Room opened: ${client.username}`);
     return;
   }
 
