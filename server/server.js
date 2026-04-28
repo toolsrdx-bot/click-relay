@@ -133,7 +133,7 @@ app.get('/', (req, res) => {
       <span class="tag">Android</span>
       <h2>Gorilla Controller</h2>
       <p>Android app — control desktops with your volume buttons.</p>
-      <a class="btn" href="${ACTIONS_URL}">Download APK</a>
+      <a class="btn" href="/download/GorillaController.apk">Download APK</a>
     </div>
     <div class="card">
       <span class="tag">Windows</span>
@@ -159,6 +159,9 @@ app.get('/', (req, res) => {
 const path = require('path');
 app.get('/download/client-linux.py', (req, res) => {
   res.download(path.join(__dirname, '../desktop-client-linux/client.py'), 'gorilla-client-linux.py');
+});
+app.get('/download/GorillaController.apk', (req, res) => {
+  res.download(path.join(__dirname, 'public/GorillaController.apk'), 'GorillaController.apk');
 });
 
 function authMiddleware(req, res, next) {
@@ -264,6 +267,9 @@ wss.on('connection', (ws, req) => {
   const ip = req.socket.remoteAddress;
   log(`WS connect from ${ip}`);
 
+  ws.isAlive = true;
+  ws.on('pong', () => { ws.isAlive = true; });
+
   ws.on('message', raw => {
     let msg;
     try { msg = JSON.parse(raw); } catch { return; }
@@ -273,6 +279,19 @@ wss.on('connection', (ws, req) => {
   ws.on('close', () => handleDisconnect(ws));
   ws.on('error', err => log(`WS error: ${err.message}`));
 });
+
+// Heartbeat: detect dead connections (e.g. phone lost internet) within ~20s.
+const heartbeatTimer = setInterval(() => {
+  wss.clients.forEach(ws => {
+    if (ws.isAlive === false) {
+      log('WS heartbeat timeout — terminating dead connection');
+      return ws.terminate();
+    }
+    ws.isAlive = false;
+    try { ws.ping(); } catch {}
+  });
+}, 10_000);
+wss.on('close', () => clearInterval(heartbeatTimer));
 
 function handleDisconnect(ws) {
   const client = clients.get(ws);

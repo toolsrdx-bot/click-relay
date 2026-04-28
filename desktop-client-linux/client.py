@@ -96,14 +96,19 @@ class JoinWindow:
     def run(self):
         self.root.mainloop(); return self.result
 
+MAX_RETRIES   = 20   # ~1 minute of retries (3s apart)
+RETRY_DELAY_S = 3
+
 class DesktopClient:
     def __init__(self, ctrl_user, room_pass, device_name):
-        self.ctrl_user   = ctrl_user
-        self.room_pass   = room_pass
-        self.device_name = device_name
-        self.ws          = None
-        self.loop        = None
-        self._connected  = False
+        self.ctrl_user        = ctrl_user
+        self.room_pass        = room_pass
+        self.device_name      = device_name
+        self.ws               = None
+        self.loop             = None
+        self._connected       = False
+        self._user_disconnect = False   # True after user clicks Disconnect
+        self._retry_count     = 0
 
         self.root = tk.Tk()
         self.root.title("Gorilla Click")
@@ -135,20 +140,20 @@ class DesktopClient:
         tk.Label(self.root, textvariable=self.log_var, font=('Arial',8),
                  bg=BG, fg=SUB, wraplength=360).pack(pady=(0,4))
 
-        # Disconnect / Reconnect buttons
-        btn_row = tk.Frame(self.root, bg=BG)
-        btn_row.pack(fill='x', padx=14, pady=4)
+        # Buttons row (Disconnect | Reconnect | Switch Room)
+        self.btn_row = tk.Frame(self.root, bg=BG)
+        self.btn_row.pack(fill='x', padx=14, pady=4)
 
         self.btn_disconnect = tk.Button(
-            btn_row, text="Disconnect", command=self._disconnect,
+            self.btn_row, text="Disconnect", command=self._disconnect,
             bg=RED, fg=BG, font=('Arial',9,'bold'), relief='flat', pady=6, cursor='hand2')
-        self.btn_disconnect.pack(side='left', fill='x', expand=True, padx=(0,4))
-
         self.btn_reconnect = tk.Button(
-            btn_row, text="Reconnect", command=self._reconnect,
+            self.btn_row, text="Reconnect", command=self._reconnect,
             bg=CYAN, fg=BG, font=('Arial',9,'bold'), relief='flat', pady=6, cursor='hand2')
-        self.btn_reconnect.pack(side='left', fill='x', expand=True, padx=(4,0))
-        self.btn_reconnect.pack_forget()  # hidden until disconnected
+        self.btn_switch = tk.Button(
+            self.btn_row, text="Switch Room", command=self._switch_room,
+            bg=AMB, fg=BG, font=('Arial',9,'bold'), relief='flat', pady=6, cursor='hand2')
+        self._set_buttons_connected()
 
     def _spawn_cursors(self):
         self.cursor_a = FloatingCursor(self.root, 'A', '#1A6FD4', 300, 300)
@@ -160,9 +165,12 @@ class DesktopClient:
         asyncio.run_coroutine_threadsafe(self._connect(), self.loop)
 
     async def _connect(self):
-        self.root.after(0, lambda: self.status_lbl.config(text='● Connecting…', fg=AMB))
+        self.root.after(0, lambda: (
+            self.status_lbl.config(text='● Connecting…', fg=AMB),
+            self._set_buttons_connected(),
+        ))
         try:
-            self.ws = await websockets.connect(WS_URL, ping_interval=20, ping_timeout=10)
+            self.ws = await websockets.connect(WS_URL, ping_interval=15, ping_timeout=8)
             await self.ws.send(json.dumps({
                 'type': 'join_room',
                 'controllerUsername': self.ctrl_user,
@@ -172,19 +180,32 @@ class DesktopClient:
             async for raw in self.ws:
                 self._handle(json.loads(raw))
         except Exception as e:
-            self._log(f'Disconnected: {e}')
+            self._log(f'Connection lost: {e}')
         finally:
+            self.ws = None
             self._connected = False
-            self.root.after(0, self._show_reconnect)
+            if self._user_disconnect:
+                self.root.after(0, self._show_reconnect_state)
+            else:
+                # Schedule auto-retry
+                if self._retry_count < MAX_RETRIES:
+                    self._retry_count += 1
+                    self.root.after(0, lambda: self.status_lbl.config(
+                        text=f'● Retrying {self._retry_count}/{MAX_RETRIES}…', fg=AMB))
+                    await asyncio.sleep(RETRY_DELAY_S)
+                    if not self._user_disconnect:
+                        asyncio.run_coroutine_threadsafe(self._connect(), self.loop)
+                else:
+                    self.root.after(0, self._show_reconnect_state)
 
     def _handle(self, msg):
         t = msg.get('type')
         if t == 'room_joined':
             self._connected = True
+            self._retry_count = 0
             self.root.after(0, lambda: (
                 self.status_lbl.config(text='● Connected', fg=GRN),
-                self.btn_reconnect.pack_forget(),
-                self.btn_disconnect.pack(side='left', fill='x', expand=True, padx=(0,4)),
+                self._set_buttons_connected(),
             ))
             self._log(f"In {self.ctrl_user}'s room. Ready.")
         elif t == 'click':
@@ -192,32 +213,57 @@ class DesktopClient:
             x, y = (self.cursor_a if c == 'A' else self.cursor_b).click()
             self._log(f'Click {c} at ({x},{y})')
         elif t == 'controller_disconnected':
-            self.root.after(0, lambda: self.status_lbl.config(text='● Controller offline', fg=AMB))
+            # Room is gone — close WS and switch UI to disconnected state
+            self._log('Controller closed the room.')
+            if self.ws:
+                asyncio.run_coroutine_threadsafe(self.ws.close(), self.loop)
         elif t == 'error':
             self._log(f"Error: {msg.get('message')}")
 
     def _log(self, text):
         self.root.after(0, lambda: self.log_var.set(text))
 
+    def _set_buttons_connected(self):
+        for w in self.btn_row.winfo_children():
+            w.pack_forget()
+        self.btn_disconnect.pack(in_=self.btn_row, side='left', fill='x', expand=True, padx=(0,0))
+
+    def _show_reconnect_state(self):
+        self.status_lbl.config(text='● Disconnected', fg=RED)
+        for w in self.btn_row.winfo_children():
+            w.pack_forget()
+        self.btn_reconnect.pack(in_=self.btn_row, side='left', fill='x', expand=True, padx=(0,4))
+        self.btn_switch.pack(in_=self.btn_row, side='left', fill='x', expand=True, padx=(4,0))
+
     def _disconnect(self):
+        self._user_disconnect = True
         if self.ws:
             asyncio.run_coroutine_threadsafe(self.ws.close(), self.loop)
-        self.root.after(0, self._show_reconnect)
-
-    def _show_reconnect(self):
-        self.status_lbl.config(text='● Disconnected', fg=RED)
-        self.btn_disconnect.pack_forget()
-        self.btn_reconnect.pack(side='left', fill='x', expand=True, padx=(4,0))
+        self.root.after(0, self._show_reconnect_state)
 
     def _reconnect(self):
-        self.btn_reconnect.pack_forget()
-        self.btn_disconnect.pack(side='left', fill='x', expand=True, padx=(0,4))
+        self._user_disconnect = False
+        self._retry_count = 0
         asyncio.run_coroutine_threadsafe(self._connect(), self.loop)
 
+    def _switch_room(self):
+        # Tear down to return to JoinWindow in __main__
+        self._user_disconnect = True
+        self.switch_requested = True
+        if self.ws:
+            asyncio.run_coroutine_threadsafe(self.ws.close(), self.loop)
+        self.root.after(50, self.root.destroy)
+
     def run(self):
+        self.switch_requested = False
         self.root.mainloop()
+        return self.switch_requested
 
 if __name__ == '__main__':
-    result = JoinWindow().run()
-    if result:
-        DesktopClient(*result).run()
+    while True:
+        result = JoinWindow().run()
+        if not result:
+            break
+        client = DesktopClient(*result)
+        if not client.run():
+            break
