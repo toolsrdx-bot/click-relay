@@ -145,7 +145,7 @@ app.get('/', (req, res) => {
       <span class="tag">Linux</span>
       <h2>Gorilla Click</h2>
       <p>Linux desktop client — run with Python 3 + websockets.</p>
-      <a class="btn" href="https://raw.githubusercontent.com/${GITHUB_REPO}/main/desktop-client-linux/client.py">Download client.py</a>
+      <a class="btn" href="/download/client-linux.py">Download client.py</a>
     </div>
   </div>
   <p style="margin-top:32px;color:#45475a;font-size:12px;">
@@ -153,6 +153,12 @@ app.get('/', (req, res) => {
   </p>
 </body>
 </html>`);
+});
+
+// ─── Direct file downloads ────────────────────────────────────────
+const path = require('path');
+app.get('/download/client-linux.py', (req, res) => {
+  res.download(path.join(__dirname, '../desktop-client-linux/client.py'), 'gorilla-client-linux.py');
 });
 
 function authMiddleware(req, res, next) {
